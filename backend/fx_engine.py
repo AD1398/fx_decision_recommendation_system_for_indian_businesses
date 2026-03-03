@@ -368,17 +368,20 @@ if __name__ == "__main__":
         # Enabled plotting for standalone run
         data = engine.get_full_dashboard(show_plot=True)
         
+        # Extract USD data for the print summary
+        usd_data = data['pairs'].get('USD', {})
+        
         print("\n" + "="*50)
         print("     FX DECISION RECOMMENDATION ENGINE")
         print("="*50)
         print(f"Timestamp:          {data['timestamp']}")
-        print(f"Current Spot Rate:  Rs. {data['current_rate']:.4f}")
-        print(f"7-Day Forecast:     Rs. {data['forecast_7d']:.4f}")
-        print(f"Movement Trend:     {data['trend']}")
-        print(f"Risk Assessment:    {data['risk_level'].upper()}")
-        print(f"Risk Score:         {data['risk_score']}")
+        print(f"Current Spot Rate:  Rs. {usd_data.get('current_rate', 'N/A')}")
+        print(f"7-Day Forecast:     Rs. {usd_data.get('forecast_7d', 'N/A')}")
+        print(f"Movement Trend:     {usd_data.get('trend', 'N/A')}")
+        print(f"Risk Assessment:    {usd_data.get('risk_level', 'N/A').upper()}")
+        print(f"Risk Score:         {usd_data.get('risk_score', 'N/A')}")
         print("-"*50)
-        print(f"FINAL RECOMMENDATION: \n{data['recommendation']}")
+        print(f"FINAL RECOMMENDATION: \n{usd_data.get('recommendation', 'N/A')}")
         print("="*50 + "\n")
     else:
         print(" Error: Could not initialize engine. Check if data/raw/ files exist.")

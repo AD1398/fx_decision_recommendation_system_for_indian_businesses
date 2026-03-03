@@ -5,7 +5,7 @@ from fx_engine import FXEngine
 from exposure_engine import ExposureEngine
 
 app = Flask(__name__)
-CORS(app)  # Enable CORS for all routes
+CORS(app, resources={r"/api/*": {"origins": ["http://localhost:5174", "http://localhost:5173"]}})
 
 # Initialize Engines
 engine = FXEngine()
@@ -17,9 +17,15 @@ def get_status():
     """Returns basic engine health and current spot rate."""
     # Optimization: If get_full_dashboard is too slow, we might want a lighter check here
     data = engine.get_full_dashboard()
+    
+    # Handle the new nested structure
+    # Defaulting to USD for the general status check
+    pairs = data.get('pairs', {})
+    usd_data = pairs.get('USD', {})
+    
     return jsonify({
         "status": "online",
-        "current_rate": data.get('current_rate'),
+        "current_rate": usd_data.get('current_rate'),
         "timestamp": data.get('timestamp')
     })
 
@@ -35,11 +41,20 @@ def get_dashboard():
 def get_recommendation():
     """Returns the final decision and risk metrics."""
     target_date = request.args.get('date')
+    currency = request.args.get('currency', 'USD')
+    
     data = engine.get_full_dashboard(target_date=target_date)
+    
+    pairs = data.get('pairs', {})
+    curr_data = pairs.get(currency, {})
+    
+    if not curr_data:
+         return jsonify({"error": f"No data for {currency}"}), 404
+         
     return jsonify({
-        "recommendation": data.get('recommendation'),
-        "risk_level": data.get('risk_level'),
-        "risk_score": data.get('risk_score')
+        "recommendation": curr_data.get('recommendation'),
+        "risk_level": curr_data.get('risk_level'),
+        "risk_score": curr_data.get('risk_score')
     })
 
 @app.route('/api/analysis/correlations', methods=['GET'])
