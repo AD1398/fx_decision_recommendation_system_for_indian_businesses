@@ -1,0 +1,51 @@
+import { useState, useEffect, useCallback } from 'react';
+import axios from 'axios';
+
+const API_BASE_URL = 'http://localhost:5000/api';
+
+export function useFXData(selectedDate = null) {
+    const [data, setData] = useState(null);
+    const [loading, setLoading] = useState(true);
+    const [error, setError] = useState(null);
+
+    const fetchData = useCallback(async () => {
+        setLoading(true);
+        try {
+            const url = selectedDate
+                ? `${API_BASE_URL}/dashboard?date=${selectedDate}`
+                : `${API_BASE_URL}/dashboard`;
+
+            const response = await axios.get(url, {
+                params: selectedDate ? { date: selectedDate } : {},
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+
+            if (response.data.error) {
+                setError(response.data.error);
+                setData(null);
+            } else {
+                setData(response.data);
+                setError(null);
+            }
+        } catch (err) {
+            console.error("API Fetch Error:", err);
+            setError("Failed to connect to FX Bridge. Ensure Python API is running.");
+            setData(null);
+        } finally {
+            setLoading(false);
+        }
+    }, [selectedDate]);
+
+    useEffect(() => {
+        fetchData();
+    }, [fetchData]);
+
+    return {
+        data,
+        loading,
+        error,
+        refresh: fetchData
+    };
+}
