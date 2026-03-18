@@ -8,6 +8,7 @@ from business_logic import (
     calculate_profit_at_risk,
     get_recommendation as get_business_recommendation,
     generate_sensitivity_matrix,
+    calculate_break_even_rate
 )
 
 app = Flask(__name__)
@@ -114,14 +115,15 @@ def calculate_exposure():
 def business_recommendation():
     """
     Full business recommendation using business_logic.py.
-    Expects JSON: { "deal_size": 100000, "currency": "USD", "type": "Importer" }
-    Returns: exposure profile, profit-at-risk, recommendation, sensitivity matrix.
+    Expects JSON: { "deal_size": 100000, "currency": "USD", "type": "Importer", "target_margin": 10.0 }
+    Returns: exposure profile, profit-at-risk, recommendation, sensitivity matrix, break_even.
     """
     try:
         req = request.json
         deal_size = float(req.get('deal_size', 100000))
         currency = req.get('currency', 'USD')
         business_type = req.get('type', 'Importer')
+        target_margin = float(req.get('target_margin', 10.0))
 
         # Pull live data from fx_engine
         dashboard_data = engine.get_full_dashboard()
@@ -151,7 +153,8 @@ def business_recommendation():
             deal_size, business_type, risk_score, risk_level, trend,
             current_rate, predicted_rate
         )
-        sensitivity = generate_sensitivity_matrix(deal_size, business_type, current_rate)
+        sensitivity = generate_sensitivity_matrix(deal_size, business_type, current_rate, target_margin)
+        break_even = calculate_break_even_rate(deal_size, business_type, current_rate, target_margin)
 
         return jsonify({
             "currency": currency,
@@ -159,6 +162,7 @@ def business_recommendation():
             "profit_at_risk": par,
             "recommendation": recommendation,
             "sensitivity_matrix": sensitivity,
+            "break_even": break_even,
         })
 
     except Exception as e:

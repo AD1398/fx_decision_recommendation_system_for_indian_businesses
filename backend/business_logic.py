@@ -281,25 +281,87 @@ def get_recommendation(deal_size: float,
 
 
 # ---------------------------------------------------------------------------
+# 3.5 Break-Even Rate Computation
+# ---------------------------------------------------------------------------
+
+def calculate_break_even_rate(deal_size: float,
+                              business_type: str,
+                              current_rate: float,
+                              target_margin_pct: float = 10.0) -> dict:
+    """
+    Computes the break-even exchange rate where the business makes 0 profit
+    relative to their constant costs and revenues in INR.
+
+    Parameters
+    ----------
+    deal_size         : Transaction amount in foreign currency
+    business_type     : "Importer", "Exporter", or "IT Firm"
+    current_rate      : Today's spot rate
+    target_margin_pct : Expected profit margin percentage (e.g., 10.0)
+
+    Returns
+    -------
+    dict with break-even rate, constant costs/revenues, and risk warning
+    """
+    is_importer = business_type == "Importer"
+
+    if is_importer:
+        # Base Cost = deal_size * current_rate
+        # For a target margin m = Profit / Revenue => m = (Rev - Cost) / Rev => Cost = Rev * (1 - m)
+        # Therefore, Revenue = Base Cost / (1 - m)
+        base_cost = deal_size * current_rate
+        revenue = base_cost / (1 - (target_margin_pct / 100))
+        # Break-even when New Cost = Revenue
+        # deal_size * break_even_rate = Revenue
+        break_even_rate = revenue / deal_size
+        
+        distance_to_break_even = break_even_rate - current_rate
+        warning = f"If the rate rises above ₹{break_even_rate:.2f}, your {target_margin_pct}% margin is wiped out completely."
+    else:
+        # Exporter / IT Firm
+        # Base Revenue = deal_size * current_rate
+        # For a target margin m = Profit / Revenue => m = (Rev - Cost) / Rev => Cost = Rev * (1 - m)
+        base_revenue = deal_size * current_rate
+        cost = base_revenue * (1 - (target_margin_pct / 100))
+        # Break-even when New Revenue = Cost
+        # deal_size * break_even_rate = Cost
+        break_even_rate = cost / deal_size
+        
+        distance_to_break_even = current_rate - break_even_rate
+        warning = f"If the rate falls below ₹{break_even_rate:.2f}, your {target_margin_pct}% margin is wiped out completely."
+
+    return {
+        "current_rate": round(current_rate, 4),
+        "target_margin_pct": target_margin_pct,
+        "break_even_rate": round(break_even_rate, 4),
+        "distance_to_break_even": round(distance_to_break_even, 4),
+        "warning": warning
+    }
+
+# ---------------------------------------------------------------------------
 # 4. Sensitivity Matrix (What-If Analysis)
 # ---------------------------------------------------------------------------
 
 def generate_sensitivity_matrix(deal_size: float,
                                 business_type: str,
-                                current_rate: float) -> list:
+                                current_rate: float,
+                                target_margin_pct: float = 10.0) -> list:
     """
-    Generate a what-if matrix showing profit/loss across rate changes.
-
-    Shows the impact of ±1%, ±2%, ±3%, and ±5% rate movements so the
-    business owner can visualise the range of financial outcomes.
+    Generate a what-if matrix showing profit/loss and margin sensitivity across rate changes.
 
     Returns
     -------
     list of dicts, each with: scenario, pct_change, new_rate, inr_value,
-    gain_loss, and impact_label
+    gain_loss, margin_pct, and impact_label
     """
     is_importer = business_type == "Importer"
     base_cost = deal_size * current_rate
+
+    if is_importer:
+        revenue = base_cost / (1 - (target_margin_pct / 100))
+    else:
+        base_revenue = base_cost
+        fixed_cost = base_revenue * (1 - (target_margin_pct / 100))
 
     pct_changes = [-5, -3, -2, -1, 0, +1, +2, +3, +5]
     matrix = []
@@ -309,14 +371,21 @@ def generate_sensitivity_matrix(deal_size: float,
         new_cost = deal_size * new_rate
         diff = new_cost - base_cost
 
-        # For Importer: positive diff = extra cost (loss)
-        # For Exporter: negative diff = less revenue (loss)
         if is_importer:
             gain_loss = -diff    # negative = loss for importer
             label = "LOSS" if gain_loss < 0 else ("GAIN" if gain_loss > 0 else "NO CHANGE")
+            
+            # New Margin = (Revenue - New Cost) / Revenue
+            new_profit = revenue - new_cost
+            new_margin = (new_profit / revenue) * 100
         else:
             gain_loss = diff     # positive = gain for exporter
             label = "LOSS" if gain_loss < 0 else ("GAIN" if gain_loss > 0 else "NO CHANGE")
+            
+            # New Margin = (New Revenue - Fixed Cost) / New Revenue
+            new_revenue = new_cost
+            new_profit = new_revenue - fixed_cost
+            new_margin = (new_profit / new_revenue) * 100
 
         # Scenario name
         if pct == 0:
@@ -333,6 +402,7 @@ def generate_sensitivity_matrix(deal_size: float,
             "inr_value": round(new_cost, 2),
             "gain_loss_inr": round(gain_loss, 2),
             "gain_loss_lakhs": round(gain_loss / 100_000, 2),
+            "margin_pct": round(new_margin, 2),
             "impact_label": label,
         })
 
