@@ -36,7 +36,7 @@ export function useFXData(selectedDate = null, horizon = 7) {
         } finally {
             setLoading(false);
         }
-    }, [selectedDate]);
+    }, [selectedDate, horizon]);
 
     useEffect(() => {
         fetchData();
