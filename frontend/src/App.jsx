@@ -25,6 +25,7 @@ import ExposureCalculator from './components/ExposureCalculator';
 import RiskGauge from './components/RiskGauge';
 import BlackSwanAlert from './components/BlackSwanAlert';
 import StatisticalPlots from './components/StatisticalPlots';
+import ForecastDashboard from './components/ForecastDashboard';
 import './index.css';
 
 function App() {
@@ -326,6 +327,8 @@ function App() {
             </GlassCard>
           </div>
         );
+      case 'forecast':
+        return <ForecastDashboard horizon={horizon} selectedDate={selectedDate} />;
       case 'calculator':
         return <ExposureCalculator horizon={horizon} />;
       case 'settings':
@@ -374,6 +377,10 @@ function App() {
           <div className={`nav-item ${activeTab === 'risk' ? 'active' : ''}`} onClick={() => setActiveTab('risk')}>
             <AlertTriangle size={20} />
             <span>Risk Matrix</span>
+          </div>
+          <div className={`nav-item ${activeTab === 'forecast' ? 'active' : ''}`} onClick={() => setActiveTab('forecast')}>
+            <TrendingUp size={20} />
+            <span>Forecasting</span>
           </div>
           <div className={`nav-item ${activeTab === 'calculator' ? 'active' : ''}`} onClick={() => setActiveTab('calculator')}>
             <Calculator size={20} />
