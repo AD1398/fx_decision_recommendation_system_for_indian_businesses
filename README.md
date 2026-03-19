@@ -32,6 +32,22 @@ Through building this analytical engine, several critical business insights were
 
 ---
 
+## 📈 Real-World Business Scenarios (Case Studies)
+
+Our platform is engineered to handle various Indian business profiles differently using prescriptive engine logic:
+
+### Case 1: The IT Exporter (Earning USD)
+An Indian IT firm with a **$100,000 receivable** scheduled for next week.
+- **The Engine Insight:** The Risk Engine detects low volatility, while the Forecast Engine predicts the USD/INR will rise from ₹83 to ₹84.
+- **The Recommendation:** **"WAIT"**. The system advises the exporter to hold their dollars, potentially increasing their profit by ₹1 Lakh.
+
+### Case 2: The Garment Importer (Paying USD)
+A textile unit needs to pay a **$50,000 invoice** for raw materials immediately.
+- **The Engine Insight:** The Z-Score detection triggers a **"Black Swan Alert"** (Z > 2.0), signaling a sudden rupee crash is imminent.
+- **The Recommendation:** **"HEDGE NOW"**. The system advises the importer to buy their USD at today's rate immediately to avoid the bankruptcy-level costs of a spiked exchange rate tomorrow.
+
+---
+
 ## Platform Methodology
 Our methodology was implemented dynamically via a Python Flask backend serving a localized React dashboard, eliminating manual analysis.
 1. **Data Ingestion & Stabilization (Srividya):** Fetches historical/live data and stabilizes the time-series using Augmented Dickey-Fuller (ADF) tests to enable accurate machine learning.
@@ -47,6 +63,54 @@ Our methodology was implemented dynamically via a Python Flask backend serving a
 - **Predictive Modelling:** Facebook Prophet (Time-Series ML), yfinance.
 - **Frontend Dashboard:** React, Vite, Tailwind CSS, Recharts.
 - **Version Control & Collaboration:** Git, GitHub.
+
+---
+
+## 🖥️ User Experience & Interaction Design
+
+Our project prioritizes the "Human-in-the-loop" experience, ensuring complex BA models are useful for everyday business owners:
+1. **The Discovery Phase:** Users start at the **Overview Dashboard**, seeing live market tickers and high-level health signals (Engine Heartbeat, Last Compute).
+2. **The "What-If" Analysis:** In the **Forecasting** tab, users can toggle between 7D and 30D views to see the AI's predicted "Safe Ranges" and "Risk Ranges."
+3. **The Risk Audit:** Users navigate to the **Risk Matrix** to see the **Z-Score Anomaly Alerts** and **Value-at-Risk** sentences. This is where the "Black Swan Alert" warns users of extreme unpredicted market shifts.
+4. **Actionable Decisions:** The **FX Calculator** allows users to input their specific deal size, which instantly updates the Risk Gauges and generates a recommendation: **"HEDGE NOW"** or **"WAIT FOR BETTER RATE"**.
+
+---
+
+## 📊 Risk Visualization Intelligence (By Kanishkhan)
+
+The Risk Engine isn't just a backend script; it drives the most critical visuals on the platform:
+- **Interactive Risk Gauges:** Standardizes raw volatility and user exposure into a single 0-100 "caution dial."
+- **Quadrants of Risk:** Plots **Volatility vs. USD Sensitivity** to visually separate "Safe Haven" currencies from "High Volatility" assets.
+- **Automated Alert Banners:** Dynamically triggered based on the Z-Score threshold (`> 2.0`), these high-contrast red banners ensure no human error in missing a market crash.
+
+---
+
+## 🚀 Technical Setup & Quick Start
+
+To run this full-stack business analytics application locally:
+
+### 1. Backend (Python/Flask)
+```bash
+# Navigate to backend directory
+cd backend
+# Install dependencies
+pip install -r ../requirements.txt
+# Start the API Bridge
+python api_bridge.py
+```
+
+### 2. Frontend (React/Vite)
+```bash
+# Navigate to frontend directory
+cd frontend
+# Install Node dependencies
+npm install
+# Start the development server
+npm run dev
+```
+Open `http://localhost:5173` to view the live Decision Support System.
+
+---
 
 ---
 
