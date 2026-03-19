@@ -5,6 +5,11 @@ import matplotlib.pyplot as plt
 from prophet import Prophet
 from datetime import datetime
 
+try:
+    from .data_engine import get_final_data
+except (ImportError, ValueError):
+    from data_engine import get_final_data
+
 class FXEngine:
     """
     Consolidated FX Decision Recommendation Engine.
@@ -27,7 +32,21 @@ class FXEngine:
         self.df_master = None
 
     def run_preprocessing(self):
-        """Merges RBI and FBIL data and calculates volatility."""
+        """
+        Uses the Data Engineering Pipeline to load and backfill data.
+        Falls back to original logic if Data Engine fails.
+        """
+        print("[INFO] Initializing Data Pipeline...")
+        try:
+            # Use the specialized Data Engine to handle Backfilling & Saving
+            df, _ = get_final_data(csv_path=self.processed_path)
+            self.df_master = df
+            print(f"[INFO] Data Engine success. Total Rows: {len(df)}")
+            return True
+        except Exception as e:
+            print(f"[WARNING] Data Engine failed: {e}. Falling back to basic loader.")
+
+        # Fallback to simple loader if Data Engine has issues
         if os.path.exists(self.processed_path):
             df = pd.read_csv(self.processed_path)
             if 'Unnamed: 0' in df.columns:
