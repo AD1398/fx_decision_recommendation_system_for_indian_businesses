@@ -4,9 +4,9 @@ import { AlertTriangle, ShieldAlert, X } from 'lucide-react';
 const BlackSwanAlert = ({ riskDetails, onDismiss }) => {
     if (!riskDetails) return null;
 
-    // Find currencies with High risk or anomalies
+    // Find currencies with genuine anomalies (z-score > 2.5σ)
     const criticalCurrencies = Object.entries(riskDetails)
-        .filter(([_, data]) => data.level === 'High' || data.is_anomaly)
+        .filter(([_, data]) => data.is_anomaly)
         .map(([currency, data]) => ({ currency, ...data }));
 
     if (criticalCurrencies.length === 0) return null;

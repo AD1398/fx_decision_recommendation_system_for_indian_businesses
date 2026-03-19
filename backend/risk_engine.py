@@ -51,7 +51,7 @@ def calculate_risk_metrics(df: pd.DataFrame, currency: str = "USD", exposure_usd
     else:
         z_score = (current_rate - last_mean) / last_std
     
-    is_anomaly = abs(z_score) > 2.0
+    is_anomaly = abs(z_score) > 2.5
     
     # --- Step 3: Value-at-Risk (VaR) ---
     var_return_threshold = np.percentile(returns, 5)
