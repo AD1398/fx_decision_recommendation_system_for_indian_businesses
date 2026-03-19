@@ -135,7 +135,7 @@ const ExposureCalculator = ({ horizon = 7 }) => {
             <div>
                 <GlassCard title="Business Parameters">
                     <div style={{ display: 'flex', flexDirection: 'column' }}>
-                        
+
                         <div style={s.inputGroup}>
                             <label style={s.label}>Business Model</label>
                             <div style={s.buttonContainer}>
@@ -196,7 +196,7 @@ const ExposureCalculator = ({ horizon = 7 }) => {
                             </div>
                         </div>
 
-                        <button 
+                        <button
                             onClick={handleCalculate}
                             disabled={loading}
                             style={{ ...s.actionButton, opacity: loading ? 0.7 : 1 }}
@@ -205,7 +205,7 @@ const ExposureCalculator = ({ horizon = 7 }) => {
                             {loading ? 'Simulating Market Impact...' : 'Run Neural Simulation'}
                             {!loading && <ArrowRight size={18} />}
                         </button>
-                        
+
                         {apiError && (
                             <div style={{ marginTop: '16px', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.3)', padding: '12px', borderRadius: '8px', color: '#EF4444', fontSize: '0.85rem', display: 'flex', alignItems: 'center', gap: '8px' }}>
                                 <AlertCircle size={16} />
@@ -264,7 +264,7 @@ const ExposureCalculator = ({ horizon = 7 }) => {
                             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px', paddingTop: '16px', borderTop: '1px solid rgba(255,255,255,0.1)' }}>
                                 <div>
                                     <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase' }}>Hedge Ratio</div>
-                                    <div style={{ fontSize: '1.2rem', color: '#fff', fontWeight: 700 }}>{recommendation?.recommendation?.hedge_ratio || '0%'}</div>
+                                    <div style={{ fontSize: '1.2rem', color: '#fff', fontWeight: 700 }}>{recommendation?.recommendation?.hedge_percentage ? recommendation.recommendation.hedge_percentage + '%' : '0%'}</div>
                                 </div>
                                 <div>
                                     <div style={{ fontSize: '0.75rem', color: '#888', textTransform: 'uppercase' }}>Urgency</div>
@@ -293,7 +293,7 @@ const ExposureCalculator = ({ horizon = 7 }) => {
                                         const isPositive = row.gain_loss_inr >= 0;
                                         return (
                                             <tr key={idx}>
-                                                <td style={{ ...s.tableCell, fontFamily: 'monospace' }}>{row.simulated_rate?.toFixed(4) || '0.000'}</td>
+                                                <td style={{ ...s.tableCell, fontFamily: 'monospace' }}>{row.new_rate?.toFixed(4) || '0.000'}</td>
                                                 <td style={s.tableCell}>{row.scenario}</td>
                                                 <td style={{ ...s.tableCell, color: isPositive ? '#10B981' : '#EF4444', fontFamily: 'monospace' }}>
                                                     {isPositive ? '+' : ''}₹{row.gain_loss_inr?.toLocaleString() || '0'}
