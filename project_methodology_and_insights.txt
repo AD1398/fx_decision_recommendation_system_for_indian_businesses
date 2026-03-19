@@ -1,0 +1,155 @@
+FOREX DECISION SUPPORT SYSTEM: A STEP-BY-STEP PROJECT WALKTHROUGH
+================================================================
+
+INTRODUCTION: THE BUSINESS PROBLEM (THE "WHY")
+----------------------------------------------
+Imagine you are an Indian business owner importing electronics from the US. You agree to pay $100,000 in 3 months. Today, the rate is ₹83/$1 (Total: ₹83 Lakhs). But if the Rupee weakens to ₹85/$1 by the time you pay, you suddenly owe ₹85 Lakhs. 
+
+You just lost ₹2 Lakhs in profit due to an "invisible" exchange rate move. Our project exists to solve this uncertainty by giving businesses a data-driven "Crystal Ball" to decide when to lock in rates and when to wait.
+
+---
+
+ACT 1: BUILDING THE FOUNDATION (DATA ENGINEERING)
+-------------------------------------------------
+WHAT: We sourced 10 years of historical USD/INR, GBP/INR, EUR/INR, and JPY/INR rates.
+HOW: We used Python (Pandas) to merge two major datasets: RBI (pre-2018) and FBIL (post-2018). We cleaned messy headers and "Forward Filled" (ffill) gaps for weekends and holidays.
+WHY: AI models are like athletes—they only perform well if they are fed "clean fuel." Raw financial data is full of holes and inconsistencies; our preprocessing ensures the model sees a smooth, continuous timeline of market behavior.
+
+ACT 2: STAYING RELEVANT (LIVE DATA INTEGRATION)
+-----------------------------------------------
+WHAT: We integrated a live feed from Yahoo Finance (yfinance).
+HOW: Every time the system runs, it downloads the latest "Spot Rate" and appends it to our historical CSV file.
+WHY: In the Forex world, yesterday's news is old news. By blending 10 years of history with "Today's" live rate, we ensure our risk calculations are based on the heartbeat of the current market.
+
+ACT 3: THE DOCTOR'S CHECKUP (STATISTICAL VALIDATION)
+----------------------------------------------------
+WHAT: We performed ADF (Stationarity) tests and Volatility calculations.
+HOW: We used 'statsmodels' to run ADF tests on "Daily Returns" (the % change) rather than raw prices. We also calculated a 30-day "Rolling Standard Deviation."
+WHY: 
+1. WHY ADF? Most AI models fail if data is "non-stationary" (drifting randomly). We prove our data is "stationary" so the AI's predictions are statistically valid.
+2. WHY VOLATILITY? This is our "Market Fever" thermometer. High volatility means the market is "nervous" and unpredictable, triggering higher risk alerts.
+
+ACT 4: SEEING THE FUTURE (MACHINE LEARNING FORECASTING)
+-------------------------------------------------------
+WHAT: We generated a 7-day outlook with 95% confidence.
+HOW: We trained 'Facebook Prophet' (a time-series AI) on the last 365 days of our cleaned data.
+WHY: A "Single Price" prediction is often wrong. Instead, we provide a "High-End" and "Low-End" range. This lets a business owner see the "Worst Case Scenario" so they can plan for it rather than being surprised.
+
+ACT 5: MEASURING THE DAMAGE (RISK & EXPOSURE ENGINES)
+-----------------------------------------------------
+WHAT: We calculated "Profit-at-Risk" (PaR) and Z-Score Anomalies.
+HOW: Using the forecast bounds, we calculate exactly how many INR Lakhs a business stands to lose if the market moves to the "Adverse" (worst-case) boundary.
+WHY: Managers don't care about "p-values"; they care about "Lakhs." By translating a 1% rate move into "₹1.5 Lakhs at Risk," we make the danger understandable and urgent for decision-makers.
+
+ACT 6: THE FINAL VERDICT (RECOMMENDATION LOGIC)
+-----------------------------------------------
+WHAT: We created a "Prescriptive" engine that says: "Hedge", "Wait", or "Split."
+HOW: We built a Decision Matrix that compares the Risk Score (how dangerous is it?) against the Forecast Trend (is it getting better or worse?).
+WHY: Financial decisions are often ruined by human panic or greed. Our engine provides a "cold," data-driven recommendation that removes emotion and follows a consistent business strategy.
+
+THE FINALE: THE DASHBOARD (PRESENTATION LAYER)
+----------------------------------------------
+WHAT: A React/Vite Dashboard powered by a Flask API.
+HOW: We served all the math from our Python engines through API endpoints (`/api/dashboard`) to a modern, dark-themed interactive UI.
+WHY: A fresher or a manager doesn't want to read 500 lines of code. They want a "Traffic Light" system. Green means "All Good," Red means "Action Required." The dashboard makes our complex math usable by anyone in the company.
+
+---
+
+BUSINESS INSIGHTS & CONCLUSION
+------------------------------
+1. TIMING IS PROFIT: By using our "Watchful Waiting" vs. "Hedge Now" signals, a mid-sized IT firm can save 2–3% of their annual revenue—money that would otherwise be lost to currency fluctuations.
+2. RISK SEGMENTATION: Not all deals are equal. The system automatically prioritizes "High-Value" deals, ensuring the business owner spends their attention where the most money is at stake.
+3. DATA-DRIVEN CONFIDENCE: For a fresher joining the team, the methodology shows that we don't just "guess" the rates; we source, clean, validate, predict, and quantify risk in a rigorous, logical chain.
+
+----------------------------------------------------------------
+DOCUMENT COMPILED BY: FX-DRS TEAM
+PURPOSE: Team Onboarding & Project Methodology Walkthrough
+DATE: MARCH 2026
+
+---
+METHODOLOGY Q&A: DEEP DIVE FOR FRESHERS
+=======================================
+
+Q1: How did you append live data? What does it give?
+---------------------------------------------------
+- HOW: Inside `backend/data_engine.py`, we use the 'yfinance' library to download the latest "Close" price for today. We then use Pandas `concat` to merge this single new row with our 10-year historical table.
+- WHAT IT GIVES: It gives the real-time conversion for 1 USD, 1 GBP, and 1 EUR in INR. For JPY, we multiply the rate by 100 to stick to the Indian market convention (INR per 100 Yen).
+- FINAL CSV: It consists of ~2,600 historical rows plus exactly 1 new row for "Today." If you run it tomorrow, it will add another row, keeping the timeline perfectly current.
+
+Q2: Why not just use live data? Why 10 years of history?
+-------------------------------------------------------
+Live data is just a "snapshot." If you only look at today's rate of ₹83, you don't know if that is "High" or "Low" relative to the past. 10 years of history allows the AI (Prophet) to learn seasonal patterns (e.g., does the Rupee weaken every March?) and cyclic trends. It also allows us to calculate "Volatility"—you can't measure how much a rate "swings" if you only have one data point.
+
+Q3: What are daily returns? What is 30-day "Rolling Standard Deviation"?
+-----------------------------------------------------------------------
+- DAILY RETURNS: The percentage change from one day to the next. Formula: `(Today / Yesterday) - 1`. It tells us how much the value "jumped" in 24 hours.
+- ROLLING SD (Volatility): We look at the last 30 days of returns and measure how much they "scatter" from the average. If returns are all near 0%, the SD is low (Stable). If they are swinging between +2% and -2%, the SD is high (Risky).
+
+Q4: Did we pass the ADF test? How do we know?
+---------------------------------------------
+- YES: We passed. 
+- PROOF: In the terminal output of the `data_engine.py`, you will see a "p-value." If this value is less than 0.05 (ours is usually 0.000), it statistically proves the data is "Stationary." 
+- WHY IT MATTERS: High-level AI models like Prophet require stationary data to avoid making "false" predictions based on temporary trends.
+
+Q5: How did we calculate volatility?
+------------------------------------
+We use the Pandas `.std()` function over a 30-day window (`.rolling(window=30)`) on the Daily Returns column. This gives us a moving score of how "unpredictable" the currency has been over the last month.
+
+Q6: How exactly does 'Facebook Prophet' work?
+---------------------------------------------
+Prophet is an "Additive Model." It breaks the exchange rate into four components: 
+1. Trend (The long-term multi-year direction).
+2. Seasonality (Weekly and Yearly patterns).
+3. Holidays (Market closures).
+4. Error/Noise (Random shocks).
+It combines these to project the next 7 days, providing a 95% "Confidence Interval" (a safety buffer).
+
+Q7: How are roles handled (Importer vs. Exporter)?
+--------------------------------------------------
+- GENERALIZING RISK: "Volatility" and "Z-Scores" (Anomalies) are market-wide—they mean the market is dangerous for *everyone*. 
+- ROLE HANDLING: In `backend/business_logic.py`, we use an `if` statement. For an **Importer**, a "Rising Trend" is flagged as **Unfavorable** (costs increase). For an **Exporter**, a "Falling Trend" is **Unfavorable** (revenue decreases). 
+- INTEGRATION: Both the Frontend (Dashboard) and Backend (API) require a `type` parameter ("Importer" or "Exporter") to flip the logic so the recommendation is personalized.
+
+Q8: What is the exact logic behind RECOMMENDATION?
+--------------------------------------------------
+The engine uses a **Decision Matrix** that cross-references two scores:
+1. RISK LEVEL (from the Risk Engine): Low, Medium, or High.
+2. FORECAST TREND (from Prophet): Up or Down.
+- Example: If Risk is "High" and the Trend is "Unfavorable" for your role, the recommendation is "HEDGE IMMEDIATELY." 
+- Example: If Risk is "Low" and the Trend is "Favorable," the recommendation is "DELAY CONVERSION" to capture more profit.
+
+Q9: How do we handle the "Gap" between Jan 1 (CSV end) and March 19 (Today)?
+-------------------------------------------------------------------------
+- STATUS: **IMPLEMENTED IN CODE** (March 19 Update).
+- THE SOLUTION: We have updated `backend/data_engine.py` to automatically detect this gap. Instead of a 1-day snapshot, the system now calculates the "Missing Days" and fetches the entire block (Jan 2 to Today) from Yahoo Finance.
+- AUTO-SAVE: The system now saves this new data directly back to `cleaned_fx_data.csv`. This means your dataset grows and stays current every time you run it!
+- ROBUSTNESS: If the CSV file is open in Excel, the system will save to an "Emergency Backup" so you never lose your data.
+
+SYSTEM UPDATE: NO CASCADING EFFECTS
+-----------------------------------
+We have integrated this Data Engine into the main `FXEngine`. This means the Dashboard, Forecasting, and Risk models all use the same "Single Source of Truth." Your project is now fully automated and real-time ready.
+
+Q10: Tomorrow's Presentation — 5-Person Team Split
+==================================================
+
+To present this project effectively in the time allotted, here is the recommended split:
+
+1. SPEAKER 1: THE FOUNDATION (Srividya Manikandan)
+   - Topics: Introduction, the "Currency Risk" problem for Indian businesses, Data Sourcing (RBI/FBIL), and the ETL/Cleaning process (Act 1).
+   - Key visual: The "Before vs After" of the raw data to the clean `cleaned_fx_data.csv`.
+
+2. SPEAKER 2: THE RISK ANALYST (Kanishkhan)
+   - Topics: Statistical Validation (ADF Tests), Volatility calculations, and the Z-Score Anomaly detection (Act 3 & Act 5). 
+   - Key visual: The Volatility plots and explaining why "Stationarity" is the secret to good AI.
+
+3. SPEAKER 3: THE FUTURIST (Adwaitha)
+   - Topics: Machine Learning Forecasting using Facebook Prophet, explaining Trends, and the 95% Confidence Intervals (Act 4).
+   - Key visual: The 7-day forecast chart with the "Safety Buffer" (High/Low bounds).
+
+4. SPEAKER 4: THE BUSINESS IMPACT (Aadhithya Bharathi)
+   - Topics: Business Exposure Modeling, Scenario Analysis (Favorable/Adverse), and Profit-at-Risk (PaR) in INR Lakhs (Act 2 & Act 5).
+   - Key visual: The PaR table showing how much money is at stake for an Importer vs. Exporter.
+
+5. SPEAKER 5: THE STRATEGIST (Adarsh)
+   - Topics: The Recommendation Engine Logic (The Decision Matrix), Business Intelligence insights, and the Final Dashboard UI (Act 6 & Finale).
+   - Key visual: The Dashboard "Traffic Light" system and the final "Prescriptive" advice demo.

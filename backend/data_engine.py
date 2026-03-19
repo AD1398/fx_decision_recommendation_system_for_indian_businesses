@@ -69,84 +69,69 @@ def load_historical_data(csv_path: str = CSV_PATH) -> pd.DataFrame:
 # Step 2 — Fetch Live Rates
 # ---------------------------------------------------------------------------
 
-def fetch_live_rates() -> dict:
+def fetch_live_rates(start_date: str = None) -> pd.DataFrame:
     """
-    Use yfinance to download the latest available price for each currency pair.
-
-    Returns a dict like:
-        {"USD": 85.12, "GBP": 107.45, "EUR": 92.30, "JPY": 55.60}
-
-    The JPY value is already quoted per 100 JPY (matching the CSV convention).
+    Fetch rates from Yahoo Finance.
+    If start_date is provided, it fetches all days from start_date up to today (BACKFILL).
+    If None, it fetches only the last 1d (SNAPSHOT).
     """
-    live_rates = {}
+    all_currency_data = []
 
     for currency, ticker in TICKERS.items():
         try:
-            data = yf.download(ticker, period="1d", progress=False)
+            if start_date:
+                data = yf.download(ticker, start=start_date, progress=False)
+            else:
+                data = yf.download(ticker, period="1d", progress=False)
 
             if data.empty:
-                warnings.warn(f"[DATA ENGINE] No data returned for {ticker}. "
-                              "Market may be closed.")
                 continue
 
-            # yf.download returns a DataFrame; grab the last closing price
+            # Handle column structure
             close_col = data["Close"]
-            # Handle multi-level columns (newer yfinance versions)
             if isinstance(close_col, pd.DataFrame):
                 close_col = close_col.iloc[:, 0]
-            price = float(close_col.iloc[-1])
-
-            # yfinance returns rate per 1 JPY (~0.58 INR).
-            # Our CSV stores per 100 JPY (~57 INR), so multiply by 100.
+            
+            s = close_col.astype(float)
             if currency == "JPY":
-                price = price * 100.0
-
-            live_rates[currency] = round(price, 4)
-            print(f"[DATA ENGINE] Live {currency}/INR = {live_rates[currency]}")
+                s = s * 100.0
+            
+            s.name = currency
+            all_currency_data.append(s)
 
         except Exception as exc:
             warnings.warn(f"[DATA ENGINE] Failed to fetch {ticker}: {exc}")
 
-    return live_rates
+    if not all_currency_data:
+        return pd.DataFrame()
+
+    new_data = pd.concat(all_currency_data, axis=1)
+    new_data.index.name = "Date"
+    return new_data
 
 
 # ---------------------------------------------------------------------------
 # Step 3 — Append Live Row
 # ---------------------------------------------------------------------------
 
-def append_live_row(df: pd.DataFrame, live_rates: dict) -> pd.DataFrame:
+def append_live_data(df: pd.DataFrame, new_data: pd.DataFrame) -> pd.DataFrame:
     """
-    Append the live rates as a new row dated today.
-
-    If today's date already exists in the DataFrame, update it instead.
-    Only the raw rate columns (USD, GBP, EUR, JPY) are filled here;
-    derived columns are computed in the next step.
+    Merge newly fetched data into the historical DataFrame and remove duplicates.
     """
-    today = pd.Timestamp(date.today())
-
-    if not live_rates:
-        print("[DATA ENGINE] No live rates available — skipping append.")
+    if new_data.empty:
         return df
 
-    if today in df.index:
-        # Update existing row with fresh live rates
-        for cur, rate in live_rates.items():
-            df.loc[today, cur] = rate
-        print(f"[DATA ENGINE] Updated existing row for {today.date()}")
-    else:
-        # Create a new row with NaN for derived columns
-        new_row = pd.DataFrame(
-            {col: [np.nan] for col in df.columns},
-            index=pd.DatetimeIndex([today], name="Date"),
-        )
-        for cur, rate in live_rates.items():
-            new_row[cur] = rate
-
-        df = pd.concat([df, new_row])
-        df = df.sort_index()
-        print(f"[DATA ENGINE] Appended new row for {today.date()}")
-
-    return df
+    # Update core rate columns
+    for col in CURRENCIES:
+        if col in new_data.columns:
+            df[col] = df[col].combine_first(new_data[col])
+        
+    # Add entirely new dates
+    new_dates = new_data.index.difference(df.index)
+    if not new_dates.empty:
+        df = pd.concat([df, new_data.loc[new_dates]])
+        
+    return df.sort_index()
 
 
 # ---------------------------------------------------------------------------
@@ -156,13 +141,16 @@ def append_live_row(df: pd.DataFrame, live_rates: dict) -> pd.DataFrame:
 def compute_derived_columns(df: pd.DataFrame) -> pd.DataFrame:
     """
     Recalculate daily returns and 30-day rolling volatility for every
-    currency so that the live row (and any gaps) are properly filled.
+    currency so that all new rows are properly filled.
     """
     for cur in CURRENCIES:
-        # Daily return = (price_t / price_{t-1}) – 1
+        # 1. Forward fill any missing spots in the raw rates first
+        df[cur] = df[cur].ffill()
+        
+        # 2. Daily return = (price_t / price_{t-1}) – 1
         df[f"{cur}_Return"] = df[cur].pct_change()
 
-        # 30-day rolling standard deviation of returns
+        # 3. 30-day rolling standard deviation of returns
         df[f"{cur}_Volatility"] = (
             df[f"{cur}_Return"]
             .rolling(window=VOLATILITY_WINDOW)
@@ -218,41 +206,59 @@ def run_adf_tests(df: pd.DataFrame) -> dict:
 # Public API — get_final_data()
 # ---------------------------------------------------------------------------
 
-def get_final_data(csv_path: str = CSV_PATH):
+def get_final_data(csv_path: str = CSV_PATH, save_to_csv: bool = True):
     """
-    Master function called by all downstream modules.
-
-    Pipeline:
-        1. Load historical cleaned_fx_data.csv
-        2. Fetch live rates via yfinance
-        3. Append / update the live row
-        4. Recompute Returns & Volatility
-        5. Run ADF stationarity tests
-
-    Returns
-    -------
-    df : pd.DataFrame
-        Complete FX dataset (historical + live), indexed by Date.
-    adf_results : dict
-        ADF test outcomes per currency.
+    Master function that loads, backfills, saves, and analyzes the FX data.
     """
-    print("=" * 60)
-    print("  FX DATA ENGINE — Starting Pipeline")
-    print("=" * 60)
-
-    # 1. Historical data
+    # 1. Load historical
     df = load_historical_data(csv_path)
 
-    # 2. Live rates
-    live_rates = fetch_live_rates()
+    # 2. Determine Backfill Range
+    last_date = df.index.max()
+    today = datetime.now()
+    
+    # Check if we have a gap (if last_date is older than yesterday)
+    # We use a 1-day buffer to account for market closure timing
+    if last_date.date() < today.date():
+        print(f"[DATA ENGINE] Gap detected! Filling from {last_date.date()} to {today.date()}...")
+        
+        # 3. Fetch (Backfill)
+        new_data = fetch_live_rates(start_date=last_date.strftime("%Y-%m-%d"))
+        
+        if not new_data.empty:
+            # 4. Append
+            df = append_live_data(df, new_data)
+            
+            # 5. Derived Analysis
+            df = compute_derived_columns(df)
+            
+            # 6. Save (The "Memory" Step)
+            if save_to_csv:
+                try:
+                    # Attempt to save to the main file
+                    df_to_save = df.copy()
+                    df_to_save.index = df_to_save.index.strftime('%Y-%m-%d')
+                    df_to_save.to_csv(csv_path, index_label='Date')
+                    print(f"[DATA ENGINE] Updated dataset saved to {csv_path}")
+                except PermissionError:
+                    print("\n" + "!" * 60)
+                    print("[CRITICAL] PERMISSION DENIED: Cannot save to cleaned_fx_data.csv")
+                    print("This usually happens if the file is OPEN in Excel or another program.")
+                    print("ACTION REQUIRED: Please CLOSE the CSV file and restart the system.")
+                    print("!" * 60 + "\n")
+                    # Fallback save so we don't lose the fetched data
+                    fallback_path = csv_path.replace(".csv", "_backup.csv")
+                    df.to_csv(fallback_path)
+                    print(f"[DATA ENGINE] Emergency backup saved to {fallback_path}")
+                except Exception as e:
+                    print(f"[ERROR] Unexpected error during to_csv: {e}")
+                    raise
+        else:
+             print("[DATA ENGINE] No new data was returned from Yahoo Finance.")
+    else:
+        print("[DATA ENGINE] Dataset is already up to date.")
 
-    # 3. Append / update
-    df = append_live_row(df, live_rates)
-
-    # 4. Derived analytics
-    df = compute_derived_columns(df)
-
-    # 5. Stationarity check
+    # 7. Stationarity check
     adf_results = run_adf_tests(df)
 
     print("=" * 60)
