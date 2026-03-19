@@ -243,10 +243,10 @@ class FXEngine:
             
         return results
 
-    def get_recommendation(self, currency='USD', target_date=None):
+    def get_recommendation(self, currency='USD', target_date=None, forecast_days=7):
         """Combines risk and forecast for final recommendation on target date for a specific currency."""
         risk = self.get_risk_assessment(currency=currency, target_date=target_date)
-        forecast = self.get_forecast(currency=currency, target_date=target_date)
+        forecast = self.get_forecast(currency=currency, days=forecast_days, target_date=target_date)
         
         if not risk or not forecast: return "Engine Not Ready"
         if "error" in risk: return risk["error"]
@@ -267,7 +267,7 @@ class FXEngine:
         else:
             return f"WAIT / SPOT CONVERSION ({currency}) - Optimal conditions. No immediate hedging needed."
 
-    def get_full_dashboard(self, show_plot=False, include_analysis=False, target_date=None):
+    def get_full_dashboard(self, show_plot=False, include_analysis=False, target_date=None, forecast_days=7):
         """Returns a consolidated summary of all metrics for all pairs for a given date."""
         self.run_preprocessing()
         if self.df_master is None: return {"error": "Data loading failed"}
@@ -280,7 +280,7 @@ class FXEngine:
         
         for curr in currencies:
             risk = self.get_risk_assessment(currency=curr, target_date=effective_date)
-            forecast = self.get_forecast(currency=curr, target_date=effective_date)
+            forecast = self.get_forecast(currency=curr, days=forecast_days, target_date=effective_date)
             
             if "error" in risk or "error" in forecast:
                 pairs_data[curr] = {"error": risk.get("error") or forecast.get("error")}
@@ -288,11 +288,12 @@ class FXEngine:
 
             pairs_data[curr] = {
                 "current_rate": forecast['current_rate'],
-                "forecast_7d": forecast['predicted_rate'],
+                "forecast_days": forecast_days,
+                "forecast_rate": forecast['predicted_rate'],
                 "trend": forecast['trend'],
                 "risk_level": risk['level'],
                 "risk_score": risk['score'],
-                "recommendation": self.get_recommendation(currency=curr, target_date=effective_date)
+                "recommendation": self.get_recommendation(currency=curr, target_date=effective_date, forecast_days=forecast_days)
             }
 
         data = {

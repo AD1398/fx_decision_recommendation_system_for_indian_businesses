@@ -13,7 +13,7 @@ This module quantifies market danger using:
 import pandas as pd
 import numpy as np
 
-def calculate_risk_metrics(df: pd.DataFrame, currency: str = "USD") -> dict:
+def calculate_risk_metrics(df: pd.DataFrame, currency: str = "USD", exposure_usd: float = 100000) -> dict:
     """
     Calculates technical risk metrics for a specific currency pair.
     
@@ -37,12 +37,10 @@ def calculate_risk_metrics(df: pd.DataFrame, currency: str = "USD") -> dict:
     returns = df[f"{currency}_Return"].dropna()
     
     # --- Step 1: 30-day Rolling Volatility (Standard Deviation of Rates) ---
-    # The prompt explicitly asks for volatility of "the rates".
     rolling_vol = series.rolling(window=30).std()
     current_vol = rolling_vol.iloc[-1]
     
     # --- Step 2: Z-Score Anomaly Detection ---
-    # Formula: (Current Rate - 30-day Average) / 30-day StdDev
     rolling_mean = series.rolling(window=30).mean()
     current_rate = series.iloc[-1]
     last_mean = rolling_mean.iloc[-1]
@@ -56,12 +54,19 @@ def calculate_risk_metrics(df: pd.DataFrame, currency: str = "USD") -> dict:
     is_anomaly = abs(z_score) > 2.0
     
     # --- Step 3: Value-at-Risk (VaR) ---
-    # Find the 5th percentile of historical daily drops (negative returns).
-    # We convert this percentile (e.g., -0.01) into an absolute INR drop.
     var_return_threshold = np.percentile(returns, 5)
     inr_loss_amount = abs(var_return_threshold * current_rate)
     
-    # The message as requested: "There is a 5% chance you could lose more than X amount of INR by tomorrow."
+    # --- Step 4: Composite Risk Score & Level ---
+    mean_vol = rolling_vol.mean()
+    vol_score = min(100, (current_vol / mean_vol) * 40) if (mean_vol and mean_vol > 0) else 0
+    
+    exp_score = min(100, ((exposure_usd - 10000) / (500000 - 10000)) * 100)
+    exp_score = max(0, exp_score)
+    
+    final_score = (0.6 * vol_score) + (0.4 * exp_score)
+    level = "Low" if final_score < 40 else "Medium" if final_score <= 70 else "High"
+
     var_message = f"There is a 5% chance you could lose more than {inr_loss_amount:.2f} INR by tomorrow."
     
     return {
@@ -72,7 +77,9 @@ def calculate_risk_metrics(df: pd.DataFrame, currency: str = "USD") -> dict:
         "is_anomaly": is_anomaly,
         "var_95_percentile": round(var_return_threshold, 6),
         "inr_loss_amount": round(inr_loss_amount, 2),
-        "var_message": var_message
+        "var_message": var_message,
+        "score": round(final_score, 2),
+        "level": level
     }
 
 def get_risk_report(df: pd.DataFrame):

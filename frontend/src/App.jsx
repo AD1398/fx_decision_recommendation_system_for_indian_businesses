@@ -22,12 +22,17 @@ import CorrelationMatrix from './components/CorrelationMatrix';
 import RiskMap from './components/RiskMap';
 import PersonaCards from './components/PersonaCards';
 import ExposureCalculator from './components/ExposureCalculator';
+import RiskGauge from './components/RiskGauge';
+import BlackSwanAlert from './components/BlackSwanAlert';
+import StatisticalPlots from './components/StatisticalPlots';
 import './index.css';
 
 function App() {
   const [selectedDate, setSelectedDate] = useState('');
   const [activeTab, setActiveTab] = useState('overview');
-  const { data, loading, error, refresh } = useFXData(selectedDate);
+  const [dismissAlert, setDismissAlert] = useState(false);
+  const [horizon, setHorizon] = useState(7);
+  const { data, loading, error, refresh } = useFXData(selectedDate, horizon);
 
   const handleDateChange = (e) => {
     setSelectedDate(e.target.value);
@@ -53,7 +58,7 @@ function App() {
             <AlertCircle size={32} />
             <div>
               <p style={{ fontWeight: 600 }}>{error}</p>
-              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>Please ensure the Python API bridge is running (`python adarsh_part/api_bridge.py`).</p>
+              <p style={{ fontSize: '0.85rem', color: 'var(--text-secondary)', marginTop: '4px' }}>Please ensure the Python API bridge is running (`python backend/api_bridge.py`).</p>
             </div>
           </div>
           <button onClick={refresh} style={{ marginTop: '1.5rem', background: 'rgba(239, 68, 68, 0.1)', border: '1px solid rgba(239, 68, 68, 0.2)', padding: '8px 20px', borderRadius: '8px', color: '#EF4444', fontWeight: 600, cursor: 'pointer' }}>
@@ -86,7 +91,7 @@ function App() {
                         </span>
                       </div>
                       <div style={{ padding: '4px 10px', borderRadius: '4px', background: 'rgba(255,255,255,0.05)', fontSize: '0.7rem', color: 'rgba(255,255,255,0.4)', marginTop: '4px' }}>
-                        Forecast: ₹{pairData?.forecast_7d || '---'}
+                        {horizon}D Forecast: ₹{pairData?.forecast_rate || '---'}
                       </div>
                     </div>
                   </GlassCard>
@@ -170,11 +175,20 @@ function App() {
             <p style={{ color: 'var(--text-secondary)', fontSize: '0.8rem', marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.8rem', fontStyle: 'italic' }}>
               <strong>Interpretation:</strong> Measures market "nervousness" and price swings for each currency. High peaks indicate periods of high uncertainty and increased financial risk for that specific pair.
             </p>
+
+            {/* Statistical Plots from Notebooks */}
+            <div style={{ marginTop: '2.5rem' }}>
+              <h3 style={{ fontSize: '1rem', fontWeight: 700, opacity: 0.6, textTransform: 'uppercase', letterSpacing: '2px', marginBottom: '1rem' }}>
+                Data Science Pipeline Outputs
+              </h3>
+              <StatisticalPlots />
+            </div>
           </div>
         );
       case 'risk':
         return (
           <div className="flex flex-col gap-6" style={{ display: 'flex', flexDirection: 'column', gap: '1.5rem' }}>
+            {/* Risk Score Cards */}
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1.5rem' }}>
               {CURRENCIES.map(curr => {
                 const pairData = data?.pairs?.[curr.code];
@@ -197,6 +211,82 @@ function App() {
                 );
               })}
             </div>
+
+            {/* Risk Gauge Charts */}
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.5rem' }}>
+              {CURRENCIES.map(curr => {
+                const riskDetail = data?.risk_details?.[curr.code];
+                const pairData = data?.pairs?.[curr.code];
+                return (
+                  <RiskGauge
+                    key={curr.code}
+                    score={pairData?.risk_score || 0}
+                    level={pairData?.risk_level || 'Low'}
+                    currency={curr.code}
+                  />
+                );
+              })}
+            </div>
+
+            {/* Z-Score Anomaly Alerts */}
+            {data?.risk_details && (
+              <div>
+                {Object.entries(data.risk_details)
+                  .filter(([_, d]) => d.is_anomaly || Math.abs(d.z_score) > 2)
+                  .map(([currency, d]) => (
+                    <div key={currency} style={{
+                      background: 'rgba(239, 68, 68, 0.1)',
+                      border: '1px solid rgba(239, 68, 68, 0.25)',
+                      borderRadius: '12px',
+                      padding: '1rem 1.5rem',
+                      marginBottom: '0.8rem',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '1rem'
+                    }}>
+                      <AlertTriangle size={20} color="#EF4444" />
+                      <div>
+                        <span style={{ color: '#EF4444', fontWeight: 800, fontSize: '0.8rem', letterSpacing: '1px' }}>
+                          ⚠️ CRITICAL ANOMALY — {currency}
+                        </span>
+                        <p style={{ color: '#FCA5A5', fontSize: '0.8rem', marginTop: '2px' }}>
+                          Z-Score: <strong>{Math.abs(d.z_score)}σ</strong> (threshold: 2σ). The current rate is {Math.abs(d.z_score)} standard deviations from the 30-day mean. Standard pricing models may be unreliable.
+                        </p>
+                      </div>
+                    </div>
+                  ))
+                }
+              </div>
+            )}
+
+            {/* VaR Warning Sentences */}
+            {data?.risk_details && (
+              <GlassCard title="Value-at-Risk (VaR) — 95% Confidence">
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '1rem' }}>
+                  {CURRENCIES.map(curr => {
+                    const d = data.risk_details[curr.code];
+                    if (!d || d.error) return null;
+                    return (
+                      <div key={curr.code} style={{
+                        background: 'rgba(255,255,255,0.03)',
+                        borderRadius: '10px',
+                        padding: '1rem',
+                        borderLeft: `3px solid ${curr.color}`
+                      }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.5rem' }}>
+                          <span style={{ fontSize: '0.7rem', fontWeight: 700, color: curr.color, letterSpacing: '1px' }}>{curr.code}/INR</span>
+                        </div>
+                        <p style={{ color: '#FCA5A5', fontSize: '0.85rem', lineHeight: 1.5 }}>
+                          There is a <strong>5% chance</strong> you could lose more than <strong style={{ color: '#EF4444', fontFamily: 'monospace' }}>₹{d.inr_loss_amount?.toFixed(2)}</strong> amount of INR by tomorrow.
+                        </p>
+                      </div>
+                    );
+                  })}
+                </div>
+              </GlassCard>
+            )}
+
+            {/* System Status Cards */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6" style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '1.5rem' }}>
               <GlassCard title="Engine Heartbeat" subtitle="ACTIVE">
                 <div style={{ display: 'flex', alignItems: 'center', gap: '8px', color: '#10B981', fontSize: '0.85rem', fontWeight: 600, marginTop: '12px' }}>
@@ -211,6 +301,8 @@ function App() {
                 <p style={{ color: 'var(--text-secondary)', fontSize: '0.85rem' }}>7-day neural projections active.</p>
               </GlassCard>
             </div>
+
+            {/* Advanced Risk Mapping */}
             <GlassCard title="Advanced Risk Mapping (Volatility vs Sensitivity)">
               <div style={{ minHeight: '350px', padding: '1.5rem', marginTop: '1rem' }}>
                 {data?.analysis?.risk_map ? (
@@ -235,7 +327,7 @@ function App() {
           </div>
         );
       case 'calculator':
-        return <ExposureCalculator />;
+        return <ExposureCalculator horizon={horizon} />;
       case 'settings':
         return (
           <div style={{ maxWidth: '600px' }}>
@@ -247,7 +339,7 @@ function App() {
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                   <span>Forecast Horizon</span>
-                  <span style={{ color: 'var(--text-secondary)' }}>7 Days</span>
+                  <span style={{ color: 'var(--text-secondary)' }}>{horizon} Days</span>
                 </div>
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '12px', background: 'rgba(255,255,255,0.03)', borderRadius: '8px' }}>
                   <span>Volatility Window</span>
@@ -311,6 +403,42 @@ function App() {
           </div>
 
           <div style={{ display: 'flex', gap: '1rem', alignItems: 'center' }}>
+            {/* Horizon Toggle */}
+            <div className="glass-pane" style={{ padding: '0.4rem', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '4px' }}>
+              <button
+                onClick={() => setHorizon(7)}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: horizon === 7 ? '#2563EB' : 'transparent',
+                  color: horizon === 7 ? '#fff' : 'var(--text-secondary)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                7D
+              </button>
+              <button
+                onClick={() => setHorizon(30)}
+                style={{
+                  padding: '0.4rem 0.8rem',
+                  borderRadius: '10px',
+                  border: 'none',
+                  background: horizon === 30 ? '#2563EB' : 'transparent',
+                  color: horizon === 30 ? '#fff' : 'var(--text-secondary)',
+                  fontSize: '0.85rem',
+                  fontWeight: 700,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s'
+                }}
+              >
+                30D
+              </button>
+            </div>
+
             <div className="glass-pane" style={{ padding: '0.6rem 1.2rem', borderRadius: '14px', display: 'flex', alignItems: 'center', gap: '12px' }}>
               <Calendar size={18} color="var(--accent-primary)" />
               <input
@@ -333,6 +461,14 @@ function App() {
             </button>
           </div>
         </header>
+
+        {/* Black Swan Alert Banner */}
+        {!dismissAlert && data?.risk_details && (
+          <BlackSwanAlert
+            riskDetails={data.risk_details}
+            onDismiss={() => setDismissAlert(true)}
+          />
+        )}
 
         {renderContent()}
       </main>

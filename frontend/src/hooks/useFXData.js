@@ -3,7 +3,7 @@ import axios from 'axios';
 
 const API_BASE_URL = 'http://localhost:5000/api';
 
-export function useFXData(selectedDate = null) {
+export function useFXData(selectedDate = null, horizon = 7) {
     const [data, setData] = useState(null);
     const [loading, setLoading] = useState(true);
     const [error, setError] = useState(null);
@@ -12,8 +12,8 @@ export function useFXData(selectedDate = null) {
         setLoading(true);
         try {
             const url = selectedDate
-                ? `${API_BASE_URL}/dashboard?date=${selectedDate}`
-                : `${API_BASE_URL}/dashboard`;
+                ? `${API_BASE_URL}/dashboard?date=${selectedDate}&include_analysis=true&horizon=${horizon}`
+                : `${API_BASE_URL}/dashboard?include_analysis=true&horizon=${horizon}`;
 
             const response = await axios.get(url, {
                 params: selectedDate ? { date: selectedDate } : {},

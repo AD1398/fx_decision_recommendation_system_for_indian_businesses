@@ -4,3 +4,7 @@ prophet
 plotly
 pandas
 statsmodels
+numpy
+openpyxl
+flask
+flask-cors
